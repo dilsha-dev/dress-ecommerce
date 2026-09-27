@@ -11,7 +11,7 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.views import TokenObtainPairView
 
-# Add any email addresses that should automatically become admins upon login
+# Emails that will automatically be granted admin access upon logging in
 ADMIN_EMAILS = ["dilshapk57@gmail.com"]
 
 
@@ -21,7 +21,7 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     def validate(self, attrs):
         data = super().validate(attrs)
 
-        # Auto-promote user to admin if their email matches ADMIN_EMAILS
+        # Auto-promote user to staff/superuser if email matches ADMIN_EMAILS
         if self.user.email in ADMIN_EMAILS and not self.user.is_staff:
             self.user.is_staff = True
             self.user.is_superuser = True
