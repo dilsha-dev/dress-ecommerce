@@ -1,5 +1,3 @@
-// Upgraded Django REST API wrapper with safe error parsing and JSON validation
-
 export interface Dress {
   id: number;
   name: string;
@@ -36,13 +34,14 @@ export const supabase = {
         const res = await fetch(url);
         const text = await res.text();
         
-        // Check if response is HTML instead of JSON
         if (text.trim().startsWith('<') || !res.ok) {
           console.error(`API Error [${res.status}] from ${url}:`, text);
-          throw new Error(`Server returned HTML/Error (${res.status}). Check backend routes.`);
+          return { data: [], error: new Error(`Server returned error (${res.status})`) };
         }
         
-        const data = JSON.parse(text);
+        const json = JSON.parse(text);
+        // Extract array whether Django returns a raw array or DRF pagination { results: [...] }
+        const data = Array.isArray(json) ? json : (json.results || []);
         return { data, error: null };
       } catch (err: any) {
         console.error("Fetch dresses error:", err);
