@@ -40,8 +40,15 @@ export const supabase = {
         }
         
         const json = JSON.parse(text);
-        // Extract array whether Django returns a raw array or DRF pagination { results: [...] }
-        const data = Array.isArray(json) ? json : (json.results || []);
+        const rawData = Array.isArray(json) ? json : (json.results || []);
+        
+        // Ensure price and stock are numbers to prevent toFixed() crashes
+        const data = rawData.map((item: any) => ({
+          ...item,
+          price: typeof item.price === 'string' ? parseFloat(item.price) : (item.price || 0),
+          stock: typeof item.stock === 'string' ? parseInt(item.stock, 10) : (item.stock || 0),
+        }));
+
         return { data, error: null };
       } catch (err: any) {
         console.error("Fetch dresses error:", err);
