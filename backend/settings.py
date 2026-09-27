@@ -1,34 +1,27 @@
 """
 Django settings for the backend project.
-
-This module configures the Django application with a MySQL database backend,
-Django REST Framework for the API, and CORS headers so the React frontend
-(served from a different origin) can communicate with the API.
 """
 
 from pathlib import Path
 import os
-
-# PyMySQL must be configured as the MySQL driver before Django
-# tries to use the default mysqlclient.
+from datetime import timedelta
 import pymysql
 
+# Configure PyMySQL driver
 pymysql.install_as_MySQLdb()
 
-# Build paths inside the project like this: BASE_DIR / 'subdir'.
-BASE_DIR = Path(__file__).resolve().parent.parent
+# BASE_DIR points directly to the directory containing settings.py
+BASE_DIR = Path(__file__).resolve().parent
 
 # ---------------------------------------------------------------------------
 # Security
 # ---------------------------------------------------------------------------
-# SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.environ.get(
     "DJANGO_SECRET_KEY",
     "django-insecure-change-this-in-production-please-1234567890",
 )
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.environ.get("DJANGO_DEBUG", "True") == "True"
+DEBUG = os.environ.get("DJANGO_DEBUG", "False") == "True"
 
 ALLOWED_HOSTS = os.environ.get("DJANGO_ALLOWED_HOSTS", "*").split(",")
 
@@ -64,8 +57,8 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
-ROOT_URLCONF = 'urls'
-WSGI_APPLICATION = 'wsgi.application'
+ROOT_URLCONF = "urls"
+WSGI_APPLICATION = "wsgi.application"
 
 TEMPLATES = [
     {
@@ -83,20 +76,21 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = "backend.wsgi.application"
-
 # ---------------------------------------------------------------------------
-# Database — MySQL
+# Database — MySQL (Aiven Cloud Compatible)
 # ---------------------------------------------------------------------------
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.mysql",
-        "NAME": os.environ.get("MYSQL_DATABASE", "dress_shop"),
-        "USER": os.environ.get("MYSQL_USER", "root"),
-        "PASSWORD": os.environ.get("MYSQL_PASSWORD", ""),
-        "HOST": os.environ.get("MYSQL_HOST", "127.0.0.1"),
-        "PORT": os.environ.get("MYSQL_PORT", "3306"),
+        "NAME": os.environ.get("DB_NAME", os.environ.get("MYSQL_DATABASE", "defaultdb")),
+        "USER": os.environ.get("DB_USER", os.environ.get("MYSQL_USER", "avnadmin")),
+        "PASSWORD": os.environ.get("DB_PASSWORD", os.environ.get("MYSQL_PASSWORD", "")),
+        "HOST": os.environ.get("DB_HOST", os.environ.get("MYSQL_HOST", "127.0.0.1")),
+        "PORT": os.environ.get("DB_PORT", os.environ.get("MYSQL_PORT", "3306")),
         "OPTIONS": {
+            "ssl": {
+                "ssl_mode": "REQUIRED",
+            },
             "charset": "utf8mb4",
         },
     }
@@ -153,8 +147,6 @@ REST_FRAMEWORK = {
 # ---------------------------------------------------------------------------
 # SimpleJWT settings
 # ---------------------------------------------------------------------------
-from datetime import timedelta
-
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(hours=2),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
@@ -166,10 +158,8 @@ SIMPLE_JWT = {
 }
 
 # ---------------------------------------------------------------------------
-# CORS — allow the React frontend to talk to this API
+# CORS Configuration
 # ---------------------------------------------------------------------------
-# In development allow everything. In production, set
-# CORS_ALLOWED_ORIGINS to your frontend URL(s) via env vars.
 CORS_ALLOW_ALL_ORIGINS = True
 
 CORS_ALLOWED_ORIGINS = [
@@ -181,7 +171,6 @@ CORS_ALLOWED_ORIGINS = [
 
 CORS_ALLOW_CREDENTIALS = True
 
-# Allow the common headers/methods the frontend will send.
 CORS_ALLOW_HEADERS = [
     "accept",
     "accept-encoding",
