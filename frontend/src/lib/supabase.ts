@@ -1,4 +1,4 @@
-// Upgraded Django REST API wrapper with aggressive payload sanitization
+// Upgraded Django REST API wrapper with safe error parsing and JSON validation
 
 export interface Dress {
   id: number;
@@ -22,7 +22,7 @@ export type CartItem = {
 export const CATEGORIES = ['All', 'Evening', 'Casual', 'Cocktail', 'Maxi'];
 export const ALL_SIZES = ['XS', 'S', 'M', 'L', 'XL'];
 
-export const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://dress-ecommerce-5uv6.onrender.com';
+export const API_BASE_URL = (import.meta.env.VITE_API_URL || 'https://dress-ecommerce-5uv6.onrender.com').replace(/\/$/, '');
 
 export const supabase = {
   from: (table: string) => {
@@ -32,12 +32,21 @@ export const supabase = {
     
     const fetchData = async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/api/dresses/`);
-        if (!res.ok) throw new Error('Failed to fetch dresses');
-        const data = await res.json();
+        const url = `${API_BASE_URL}/api/dresses/`;
+        const res = await fetch(url);
+        const text = await res.text();
+        
+        // Check if response is HTML instead of JSON
+        if (text.trim().startsWith('<') || !res.ok) {
+          console.error(`API Error [${res.status}] from ${url}:`, text);
+          throw new Error(`Server returned HTML/Error (${res.status}). Check backend routes.`);
+        }
+        
+        const data = JSON.parse(text);
         return { data, error: null };
       } catch (err: any) {
-        return { data: null, error: err };
+        console.error("Fetch dresses error:", err);
+        return { data: [], error: err };
       }
     };
 
@@ -47,7 +56,7 @@ export const supabase = {
         
         chainablePromise.order = function(column: string, options?: { ascending?: boolean }) {
           chainablePromise = chainablePromise.then((res: any) => {
-            if (!res.data) return res;
+            if (!res.data || !Array.isArray(res.data)) return res;
             const sortedData = [...res.data].sort((a, b) => {
               let valA = a[column];
               let valB = b[column];
@@ -67,8 +76,6 @@ export const supabase = {
       insert: async (payload: any) => {
         try {
           const token = localStorage.getItem('token');
-          
-          // Sanitize payload to prevent null fields from triggering Django validation errors
           const formattedPayload = {
             name: payload.name || 'Untitled Dress',
             description: payload.description || 'A stunning piece curated for your collection.',
@@ -79,7 +86,8 @@ export const supabase = {
             image: payload.image || payload.image_url || 'https://images.unsplash.com/photo-1566174053879-31528523f8ae?auto=format&fit=crop&w=800&q=80',
           };
 
-          const res = await fetch(`${API_BASE_URL}/api/dresses/`, {
+          const url = `${API_BASE_URL}/api/dresses/`;
+          const res = await fetch(url, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -88,10 +96,15 @@ export const supabase = {
             body: JSON.stringify(formattedPayload),
           });
           
-          const data = await res.json();
-          if (!res.ok) throw new Error(JSON.stringify(data));
+          const text = await res.text();
+          if (text.trim().startsWith('<') || !res.ok) {
+            throw new Error(`Server error [${res.status}]: ${text.slice(0, 150)}`);
+          }
+          
+          const data = JSON.parse(text);
           return { data, error: null };
         } catch (err: any) {
+          console.error("Insert dress error:", err);
           return { data: null, error: err };
         }
       },
@@ -104,11 +117,9 @@ export const supabase = {
             if (formattedPayload.image && !formattedPayload.image_url) {
               formattedPayload.image_url = formattedPayload.image;
             }
-            if (formattedPayload.image_url && !formattedPayload.image) {
-              formattedPayload.image = formattedPayload.image_url;
-            }
 
-            const res = await fetch(`${API_BASE_URL}/api/dresses/${value}/`, {
+            const url = `${API_BASE_URL}/api/dresses/${value}/`;
+            const res = await fetch(url, {
               method: 'PATCH',
               headers: {
                 'Content-Type': 'application/json',
@@ -116,8 +127,11 @@ export const supabase = {
               },
               body: JSON.stringify(formattedPayload),
             });
-            const data = await res.json();
-            if (!res.ok) throw new Error(JSON.stringify(data));
+            const text = await res.text();
+            if (text.trim().startsWith('<') || !res.ok) {
+              throw new Error(`Server error [${res.status}]`);
+            }
+            const data = JSON.parse(text);
             return { data, error: null };
           } catch (err: any) {
             return { data: null, error: err };
@@ -129,7 +143,8 @@ export const supabase = {
         eq: async (_field: string, value: any) => {
           try {
             const token = localStorage.getItem('token');
-            const res = await fetch(`${API_BASE_URL}/api/dresses/${value}/`, {
+            const url = `${API_BASE_URL}/api/dresses/${value}/`;
+            const res = await fetch(url, {
               method: 'DELETE',
               headers: {
                 ...(token ? { Authorization: `Bearer ${token}` } : {}),
