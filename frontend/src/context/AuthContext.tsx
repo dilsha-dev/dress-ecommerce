@@ -1,21 +1,20 @@
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
-import { Session, User } from '@supabase/supabase-js';
-import { supabase } from '@/lib/supabase';
 
 export type UserRole = 'customer' | 'admin';
 
 export interface UserProfile {
-  id: string;
-  full_name: string;
-  role: UserRole;
+  id?: string;
+  email: string;
+  full_name?: string;
+  role?: UserRole;
 }
 
 interface AuthContextValue {
-  session: Session | null;
-  user: User | null;
+  user: UserProfile | null;
   profile: UserProfile | null;
   isAdmin: boolean;
   loading: boolean;
+  token: string | null;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, fullName: string) => Promise<void>;
   signOut: () => Promise<void>;
@@ -23,101 +22,80 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://dress-ecommerce-5uv6.onrender.com';
+
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [session, setSession] = useState<Session | null>(null);
-  const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  const fetchProfile = useCallback(async (userId: string): Promise<UserProfile | null> => {
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('id, full_name, role')
-        .eq('id', userId)
-        .maybeSingle();
-
-      if (error) {
-        console.error('Profile fetch failed', error);
-        return null;
-      }
-      return data as UserProfile | null;
-    } catch (err) {
-      console.error('Profile fetch error', err);
-      return null;
-    }
-  }, []);
-
-  useEffect(() => {
-    let mounted = true;
-
-    supabase.auth.getSession().then(({ data: { session: initialSession } }) => {
-      if (!mounted) return;
-      setSession(initialSession);
-
-      if (initialSession?.user) {
-        fetchProfile(initialSession.user.id).then((p) => {
-          if (mounted) {
-            setProfile(p);
-            setLoading(false);
-          }
-        });
-      } else {
-        setLoading(false);
-      }
-    });
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, newSession) => {
-      setSession(newSession);
-
-      if (newSession?.user) {
-        (async () => {
-          const p = await fetchProfile(newSession.user.id);
-          if (mounted) setProfile(p);
-        })();
-      } else {
-        setProfile(null);
-      }
-    });
-
-    return () => {
-      mounted = false;
-      subscription.unsubscribe();
-    };
-  }, [fetchProfile]);
+  const [user, setUser] = useState<UserProfile | null>(() => {
+    const savedUser = localStorage.getItem('user');
+    return savedUser ? JSON.parse(savedUser) : null;
+  });
+  const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
+  const [loading, setLoading] = useState(false);
 
   const signIn = useCallback(async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) throw new Error('Invalid email or password.');
+    const response = await fetch(`${API_BASE_URL}/api/token/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: email,
+        email: email,
+        password: password,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.detail || data.message || 'Invalid email or password.');
+    }
+
+    const accessToken = data.access;
+    const userData = { email, full_name: data.full_name || '', role: data.role || 'customer' };
+
+    localStorage.setItem('token', accessToken);
+    localStorage.setItem('user', JSON.stringify(userData));
+
+    setToken(accessToken);
+    setUser(userData);
   }, []);
 
   const signUp = useCallback(async (email: string, password: string, fullName: string) => {
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: { data: { full_name: fullName } },
+    const response = await fetch(`${API_BASE_URL}/api/register/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: email,
+        email: email,
+        password: password,
+        full_name: fullName,
+      }),
     });
-    if (error) throw new Error('Could not create account. Please try again.');
 
-    if (data.user && !data.session) {
-      throw new Error('EMAIL_CONFIRM_PENDING');
+    const data = await response.json();
+
+    if (!response.ok) {
+      const errorMsg = data.email?.[0] || data.username?.[0] || data.detail || data.message || 'Could not create account.';
+      throw new Error(errorMsg);
     }
-  }, []);
+
+    await signIn(email, password);
+  }, [signIn]);
 
   const signOut = useCallback(async () => {
-    await supabase.auth.signOut();
-    setProfile(null);
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    setToken(null);
+    setUser(null);
   }, []);
 
   return (
     <AuthContext.Provider
       value={{
-        session,
-        user: session?.user ?? null,
-        profile,
-        isAdmin: profile?.role === 'admin',
+        user,
+        profile: user,
+        isAdmin: user?.role === 'admin',
         loading,
+        token,
         signIn,
         signUp,
         signOut,
