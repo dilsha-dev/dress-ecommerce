@@ -1,0 +1,59 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Product card hover effect */
+.product-card {
+  transition: box-shadow 0.3s ease, transform 0.3s ease;
+}
+
+.product-card:hover {
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.12) !important;
+  transform: translateY(-4px);
+}
+
+.product-card:hover .product-img {
+  transform: scale(1.08);
+}
+
+/* Smooth scrolling */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Remove default focus outline on buttons but keep accessible focus */
+.btn:focus {
+  box-shadow: none;
+}
+
+.btn-outline-dark:focus {
+  box-shadow: 0 0 0 2px rgba(194, 24, 91, 0.25);
+}
+
+/* Offcanvas width fix for mobile */
+.offcanvas-end {
+  --bs-offcanvas-width: 440px;
+}
+
+/* Table hover refinement */
+.table > :not(caption) > * > * {
+  vertical-align: middle;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f5f5f5;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #ddd;
+  border-radius: 0;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #c2185b;
+}
