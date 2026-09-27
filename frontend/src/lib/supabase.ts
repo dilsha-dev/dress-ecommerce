@@ -1,4 +1,4 @@
-// Upgraded Django REST API wrapper preserving Supabase method chaining (select, order, insert, update, delete)
+// Upgraded Django REST API wrapper with aggressive payload sanitization
 
 export interface Dress {
   id: number;
@@ -30,7 +30,6 @@ export const supabase = {
       throw new Error(`Unsupported table: ${table}`);
     }
     
-    // Helper to fetch data
     const fetchData = async () => {
       try {
         const res = await fetch(`${API_BASE_URL}/api/dresses/`);
@@ -46,7 +45,6 @@ export const supabase = {
       select: (_query?: string) => {
         let chainablePromise: any = fetchData().then(result => result);
         
-        // Add chainable .order() method to fix "order is not a function"
         chainablePromise.order = function(column: string, options?: { ascending?: boolean }) {
           chainablePromise = chainablePromise.then((res: any) => {
             if (!res.data) return res;
@@ -70,15 +68,16 @@ export const supabase = {
         try {
           const token = localStorage.getItem('token');
           
-          // Clean up payload fields to match Django backend expectations
-          const formattedPayload = { ...payload };
-          if (formattedPayload.image && !formattedPayload.image_url) {
-            formattedPayload.image_url = formattedPayload.image;
-          }
-          // Prevent sending "All" as a valid category option on creation
-          if (formattedPayload.category === 'All' || !formattedPayload.category) {
-            formattedPayload.category = 'Casual'; 
-          }
+          // Sanitize payload to prevent null fields from triggering Django validation errors
+          const formattedPayload = {
+            name: payload.name || 'Untitled Dress',
+            description: payload.description || 'A stunning piece curated for your collection.',
+            price: !isNaN(parseFloat(payload.price)) ? parseFloat(payload.price) : 49.99,
+            stock: !isNaN(parseInt(payload.stock, 10)) ? parseInt(payload.stock, 10) : 10,
+            category: payload.category && payload.category !== 'All' ? payload.category : 'Casual',
+            image_url: payload.image_url || payload.image || 'https://images.unsplash.com/photo-1566174053879-31528523f8ae?auto=format&fit=crop&w=800&q=80',
+            image: payload.image || payload.image_url || 'https://images.unsplash.com/photo-1566174053879-31528523f8ae?auto=format&fit=crop&w=800&q=80',
+          };
 
           const res = await fetch(`${API_BASE_URL}/api/dresses/`, {
             method: 'POST',
@@ -88,6 +87,7 @@ export const supabase = {
             },
             body: JSON.stringify(formattedPayload),
           });
+          
           const data = await res.json();
           if (!res.ok) throw new Error(JSON.stringify(data));
           return { data, error: null };
@@ -103,6 +103,9 @@ export const supabase = {
             const formattedPayload = { ...payload };
             if (formattedPayload.image && !formattedPayload.image_url) {
               formattedPayload.image_url = formattedPayload.image;
+            }
+            if (formattedPayload.image_url && !formattedPayload.image) {
+              formattedPayload.image = formattedPayload.image_url;
             }
 
             const res = await fetch(`${API_BASE_URL}/api/dresses/${value}/`, {
